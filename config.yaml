@@ -1,0 +1,51 @@
+# Minervini Trend Template breadth logger — configuration.
+# All thresholds live here; screening code reads them, never hard-codes them.
+
+provider: yfinance            # yfinance | eodhd
+eodhd_api_key_env: EODHD_API_KEY
+
+criteria:
+  sma_fast: 50
+  sma_mid: 150
+  sma_slow: 200
+  sma_slow_trend_days: 21     # criterion 3: SMA200 vs its value N trading days ago
+  week52_days: 252            # trading days in the 52-week window
+  low_52w_multiple: 1.30      # criterion 6: close >= multiple * 52w low
+  high_52w_multiple: 0.75     # criterion 7: close >= multiple * 52w high
+  rs_percentile_min: 70       # criterion 8
+  rs_lookbacks: {m6: 126, m9: 189, m12: 252}   # trading days
+  rs_weights:   {m6: 2.0, m9: 1.0, m12: 1.0}   # raw = 2*r6 + r9 + r12
+
+liquidity:
+  adv_window: 50              # days for average traded value
+  us:
+    min_price: 5.0            # USD
+    min_adv: 5000000          # USD, 50-day average dollar volume
+    currency: USD
+  europe:
+    min_price: 5.0            # EUR (converted to local currency per ticker)
+    min_adv: 3000000          # EUR, 50-day average traded value
+    currency: EUR
+
+data:
+  lookback_calendar_days: 480 # ~15 months of daily bars for a daily run
+  cache_dir: data/cache
+  chunk_size: 150             # tickers per yfinance batch request
+  max_retries: 3
+  retry_sleep_seconds: 10
+  stale_days: 7               # flag tickers whose last bar is older than this
+  ffill_limit: 5              # forward-fill panels across local holidays (trading days)
+
+universe:
+  us:
+    # Exchange codes from NASDAQ's otherlisted.txt: N = NYSE. Add "A" for NYSE American.
+    other_listed_exchanges: [N]
+  europe:
+    seed_file: data/universe/europe_seed.csv
+
+output:
+  dir: output
+  breadth_log: breadth_log.csv
+  europe_exchange_log: europe_by_exchange.csv
+  snapshot_dir: snapshots
+  quality_dir: quality
