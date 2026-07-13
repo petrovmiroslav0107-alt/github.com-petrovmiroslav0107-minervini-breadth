@@ -1,0 +1,77 @@
+name: breadth-log
+
+on:
+  schedule:
+    - cron: "0 17 * * 1-5"    # after European closes -> europe
+    - cron: "30 22 * * 1-5"   # after US close        -> us
+  workflow_dispatch:
+    inputs:
+      region:
+        description: "Region to screen"
+        type: choice
+        options: [us, europe, both]
+        default: both
+      backfill_days:
+        description: "Trading days to evaluate (1 = daily run, ~252 = 12-month backfill)"
+        default: "1"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: breadth-log
+  cancel-in-progress: false
+
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Decide region
+        id: region
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "region=${{ inputs.region }}" >> "$GITHUB_OUTPUT"
+            echo "backfill=${{ inputs.backfill_days }}" >> "$GITHUB_OUTPUT"
+          else
+            HOUR=$(date -u +%H)
+            if [ "$HOUR" -lt 20 ]; then REGION=europe; else REGION=us; fi
+            echo "region=$REGION" >> "$GITHUB_OUTPUT"
+            echo "backfill=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Warm OHLCV cache from previous runs (best effort)
+        uses: actions/cache@v4
+        with:
+          path: data/cache
+          key: ohlcv-${{ steps.region.outputs.region }}-${{ github.run_id }}
+          restore-keys: ohlcv-${{ steps.region.outputs.region }}-
+
+      - name: Run screen
+        run: |
+          python -m breadth.run \
+            --region "${{ steps.region.outputs.region }}" \
+            --backfill-days "${{ steps.region.outputs.backfill }}"
+
+      - name: Commit results
+        run: |
+          git config user.name "breadth-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add output/
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "breadth: ${{ steps.region.outputs.region }} $(date -u +%F)"
+          git pull --rebase origin "${{ github.ref_name }}"
+          git push
