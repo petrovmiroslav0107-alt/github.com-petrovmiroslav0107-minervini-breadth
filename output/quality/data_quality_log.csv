@@ -1,3 +1,3 @@
 region,date,symbols_requested,downloaded,failed_download,empty_history,stale_last_bar,insufficient_history,eligible_latest,failed_symbols,stale_symbols
 europe,2026-07-13,487,472,0,15,0,0,411,,
-us,2026-07-13,5331,5329,0,2,0,426,2627,,
+us,2026-07-13,5331,5330,0,1,0,429,2619,,
